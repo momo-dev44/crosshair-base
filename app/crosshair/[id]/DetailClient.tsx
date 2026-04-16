@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { type Crosshair, type ProSettings } from "@/lib/data";
 import CrosshairRenderer, { parseCrosshair, type ParsedCrosshair } from "@/app/components/CrosshairRenderer";
 import { useFavorites } from "@/app/components/useFavorites";
@@ -106,7 +107,7 @@ function stateToParams(colorIdx: string, s: EditorState): string {
 }
 
 function paramsToState(
-  sp: URLSearchParams,
+  sp: { has(k: string): boolean; get(k: string): string | null },
   base: EditorState,
   baseColor: string,
 ): { colorIdx: string; editorState: EditorState } | null {
@@ -247,56 +248,39 @@ interface Props {
 export default function DetailClient({ crosshair }: Props) {
   const catColor = CATEGORY_COLOR[crosshair.category] ?? "#94a3b8";
 
+  // Next.js hooks for URL persistence
+  const router     = useRouter();
+  const pathname   = usePathname();
+  const searchParams = useSearchParams();
+
   // Immutable originals — used for reset and modified-detection
   const originalColorIdx = useMemo(() => getColorIdxFromCode(crosshair.code), [crosshair.code]);
   const originalState    = useMemo(() => parseToEditorState(crosshair.code),  [crosshair.code]);
 
-  // State (initialized from code; URL params applied on mount via useEffect below)
-  const [activeColorIdx, setActiveColorIdx] = useState<string>(originalColorIdx);
-  const [editorState,    setEditorState]    = useState<EditorState>(originalState);
+  // State — initialized from URL params so shared links load the right config
+  const [activeColorIdx, setActiveColorIdx] = useState<string>(() => {
+    const parsed = paramsToState(searchParams, originalState, originalColorIdx);
+    return parsed?.colorIdx ?? originalColorIdx;
+  });
+  const [editorState, setEditorState] = useState<EditorState>(() => {
+    const parsed = paramsToState(searchParams, originalState, originalColorIdx);
+    return parsed?.editorState ?? originalState;
+  });
 
-  // Mobile drawer
-  const [drawerOpen, setDrawerOpen] = useState(false);
-
-  // ── Apply URL params on mount (enables shared links) ───────────────────────
-  useEffect(() => {
-    const sp = new URLSearchParams(window.location.search);
-    const parsed = paramsToState(sp, originalState, originalColorIdx);
-    if (!parsed) return;
-    setActiveColorIdx(parsed.colorIdx);
-    setEditorState(parsed.editorState);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally runs once
-
-  // ── Sync state → URL (debounced 400 ms) ────────────────────────────────────
+  // ── Sync state → URL via router.replace (debounced 400 ms) ────────────────
   const urlTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (urlTimer.current) clearTimeout(urlTimer.current);
     urlTimer.current = setTimeout(() => {
-      if (isModified) {
-        window.history.replaceState(null, "", `?${stateToParams(activeColorIdx, editorState)}`);
-      } else {
-        window.history.replaceState(null, "", window.location.pathname);
-      }
+      const nextUrl = isModified
+        ? `${pathname}?${stateToParams(activeColorIdx, editorState)}`
+        : pathname;
+      router.replace(nextUrl, { scroll: false });
     }, 400);
     return () => { if (urlTimer.current) clearTimeout(urlTimer.current); };
-  // isModified is derived — handled via deps below
+  // isModified is derived from activeColorIdx / editorState — covered by deps below
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeColorIdx, editorState]);
-
-  // ── Escape key closes mobile drawer ────────────────────────────────────────
-  useEffect(() => {
-    if (!drawerOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setDrawerOpen(false); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [drawerOpen]);
-
-  // ── Scroll lock while drawer is open ───────────────────────────────────────
-  useEffect(() => {
-    document.body.style.overflow = drawerOpen ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
-  }, [drawerOpen]);
 
   // ── Derived values ─────────────────────────────────────────────────────────
   const activeHex = useMemo(
@@ -359,31 +343,25 @@ export default function DetailClient({ crosshair }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f1923] text-white">
-      {/* ── Nav ── */}
-      <header className="sticky top-0 z-10 border-b border-[#1c2f3d] bg-[#0b1520]">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors text-sm font-medium"
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              Back
-            </Link>
-            <span className="text-[#1c2f3d]">/</span>
-            <Link href="/" className="text-sm font-bold tracking-tight">
-              Crosshair<span className="text-cyan-400">Base</span>
-            </Link>
-          </div>
-          <span className="text-xs font-semibold text-slate-400 hidden sm:block">{crosshair.name}</span>
-        </div>
-      </header>
+    <div className="min-h-screen bg-[#0f1923] text-white overflow-x-hidden">
 
       {/* ── Main ── */}
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      <main className="mx-auto max-w-6xl px-4 pt-6 pb-10 sm:px-6">
+
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 mb-7 text-xs">
+          <Link
+            href="/"
+            className="flex items-center gap-1 text-slate-500 hover:text-white transition-colors font-medium"
+          >
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            VALORANT
+          </Link>
+          <span className="text-[#1c2f3d]">/</span>
+          <span className="text-slate-400 font-semibold">{crosshair.name}</span>
+        </div>
         {/* Player header */}
         <div className="flex items-start gap-3 mb-8">
           <div className="mt-1 h-3 w-1 rounded-full shrink-0" style={{ background: catColor }} />
@@ -401,8 +379,8 @@ export default function DetailClient({ crosshair }: Props) {
         {/* ── 2-column layout ── */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
 
-          {/* Left: visibility grid */}
-          <div>
+          {/* Left: visibility grid — pushed below sidebar on mobile */}
+          <div className="order-last lg:order-first">
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600 mb-3">
               Visibility Testing Suite
             </p>
@@ -429,8 +407,21 @@ export default function DetailClient({ crosshair }: Props) {
             </div>
           </div>
 
-          {/* Right: sidebar */}
-          <div className="flex flex-col gap-4 lg:sticky lg:top-[56px] lg:self-start">
+          {/* Right: sidebar — rises to top on mobile, sticky on desktop */}
+          <div className="order-first lg:order-last flex flex-col gap-4 lg:sticky lg:top-[56px] lg:self-start">
+
+            {/* ── Mobile-only: large live preview ── */}
+            <div className="lg:hidden rounded-xl overflow-hidden border border-[#1c2f3d] aspect-square w-full max-w-[320px] mx-auto">
+              <CrosshairRenderer
+                code={crosshair.code}
+                colorOverride={activeHex}
+                cfgOverride={cfgOverride}
+                fill
+              />
+            </div>
+            {/* Editor — immediately after preview so sliders are visible while watching changes */}
+            <CrosshairEditor {...editorProps} />
+
             {/* Import code */}
             <div className="rounded-xl border border-[#1c2f3d] bg-[#111e2a] overflow-hidden">
               <div className="px-4 py-3 border-b border-[#1c2f3d]">
@@ -448,11 +439,6 @@ export default function DetailClient({ crosshair }: Props) {
               </div>
             </div>
 
-            {/* Editor — desktop only (mobile gets the FAB + drawer below) */}
-            <div className="hidden lg:block">
-              <CrosshairEditor {...editorProps} />
-            </div>
-
             {/* Pro settings */}
             {(crosshair.proSettings || crosshair.category === "Pro") && (
               <ProfessionalSettingsCard settings={crosshair.proSettings} accentColor={catColor} />
@@ -466,86 +452,6 @@ export default function DetailClient({ crosshair }: Props) {
           CrosshairBase — Fan resource. Not affiliated with Riot Games.
         </p>
       </footer>
-
-      {/* ── Mobile: floating Editor button ── */}
-      <div className="fixed bottom-6 right-4 z-30 lg:hidden">
-        <button
-          onClick={() => setDrawerOpen(true)}
-          aria-label="Open crosshair editor"
-          className={[
-            "flex items-center gap-2 rounded-full px-4 py-3 text-xs font-bold uppercase tracking-widest shadow-xl transition-all duration-200 active:scale-95",
-            isModified
-              ? "bg-cyan-400 text-[#0a1018] shadow-[0_0_24px_rgba(34,211,238,0.45)]"
-              : "bg-[#111e2a] border border-[#1c2f3d] text-slate-400 hover:text-white hover:border-[#2a3f52]",
-          ].join(" ")}
-        >
-          {/* Pencil icon */}
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path d="M11.5 2.5a2.121 2.121 0 0 1 3 3L5 15H2v-3L11.5 2.5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-          </svg>
-          Editor
-          {isModified && (
-            <span className="h-1.5 w-1.5 rounded-full bg-[#0a1018]/60" aria-hidden="true" />
-          )}
-        </button>
-      </div>
-
-      {/* ── Mobile: slide-up drawer ── */}
-      <div
-        className={[
-          "fixed inset-0 z-40 lg:hidden transition-all duration-300",
-          drawerOpen ? "pointer-events-auto" : "pointer-events-none",
-        ].join(" ")}
-        aria-modal="true"
-        aria-hidden={!drawerOpen}
-      >
-        {/* Backdrop */}
-        <div
-          className={[
-            "absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300",
-            drawerOpen ? "opacity-100" : "opacity-0",
-          ].join(" ")}
-          onClick={() => setDrawerOpen(false)}
-        />
-        {/* Sheet */}
-        <div
-          className={[
-            "absolute bottom-0 left-0 right-0 max-h-[88vh] flex flex-col rounded-t-2xl bg-[#0d1a26] border-t border-[#1c2f3d] shadow-2xl transition-transform duration-300 ease-out",
-            drawerOpen ? "translate-y-0" : "translate-y-full",
-          ].join(" ")}
-        >
-          {/* Drawer handle + header */}
-          <div className="sticky top-0 shrink-0 bg-[#0d1a26] rounded-t-2xl border-b border-[#1c2f3d] z-10">
-            {/* Drag handle pill */}
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="h-1 w-8 rounded-full bg-[#2a3f52]" />
-            </div>
-            <div className="flex items-center justify-between px-4 pb-3">
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-bold text-white">Crosshair Editor</p>
-                {isModified && (
-                  <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-sm border border-cyan-400/30 bg-cyan-400/10 text-cyan-400 leading-none">
-                    Modified
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={() => setDrawerOpen(false)}
-                className="flex h-7 w-7 items-center justify-center rounded-full border border-[#1c2f3d] text-slate-400 hover:text-white hover:border-[#2a3f52] transition-colors"
-                aria-label="Close editor"
-              >
-                <svg width="9" height="9" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-                  <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                </svg>
-              </button>
-            </div>
-          </div>
-          {/* Scrollable editor content */}
-          <div className="overflow-y-auto overscroll-contain">
-            <CrosshairEditor {...editorProps} inDrawer />
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
@@ -614,7 +520,6 @@ interface EditorProps {
   onStateChange:  (s: EditorState) => void;
   isModified:     boolean;
   onReset:        () => void;
-  inDrawer?:      boolean;
 }
 
 function SliderRow({
@@ -693,7 +598,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function CrosshairEditor({
   accentColor, activeColorIdx, onColorChange, state, onStateChange,
-  isModified, onReset, inDrawer = false,
+  isModified, onReset,
 }: EditorProps) {
   const set = useCallback(
     (patch: Partial<EditorState>) => onStateChange({ ...state, ...patch }),
@@ -701,17 +606,10 @@ function CrosshairEditor({
   );
   const activeColor = VALORANT_COLORS.find((c) => c.idx === activeColorIdx) ?? VALORANT_COLORS[0];
 
-  const wrapClass = inDrawer
-    ? "" // drawer already styled by parent
-    : "rounded-xl border border-[#1c2f3d] bg-[#111e2a] overflow-hidden";
-
   return (
-    <div className={wrapClass}>
+    <div className="rounded-xl border border-[#1c2f3d] bg-[#111e2a] overflow-hidden">
       {/* Card header */}
-      <div className={[
-        "flex items-center justify-between px-4 py-3 border-b border-[#1c2f3d]",
-        inDrawer ? "bg-[#111e2a]" : "",
-      ].join(" ")}>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[#1c2f3d]">
         <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Editor</p>
         <div className="flex items-center gap-2">
           {/* Reset button — only shown when state differs from original */}

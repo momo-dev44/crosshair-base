@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { crosshairs } from "@/lib/data";
 import DetailClient from "./DetailClient";
@@ -13,6 +14,11 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return {
     title: `${crosshair.name} Crosshair — CrosshairBase`,
     description: `${crosshair.name}'s Valorant crosshair code. Copy and paste directly into Valorant settings.`,
+    openGraph: {
+      title: `${crosshair.name} Crosshair — CrosshairBase`,
+      description: `Copy ${crosshair.name}'s Valorant crosshair code and customise it live.`,
+      url: `https://crosshairbase.gg/crosshair/${id}`,
+    },
   };
 }
 
@@ -22,5 +28,9 @@ export default async function CrosshairPage({ params }: { params: Promise<{ id: 
 
   if (!crosshair) notFound();
 
-  return <DetailClient crosshair={crosshair} />;
+  return (
+    <Suspense fallback={null}>
+      <DetailClient crosshair={crosshair} />
+    </Suspense>
+  );
 }

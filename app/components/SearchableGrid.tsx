@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useMemo, useRef, useCallback, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import CrosshairCard from "./CrosshairCard";
 import CategoryFilter from "./CategoryFilter";
 import { useFavorites } from "./useFavorites";
@@ -96,20 +96,22 @@ function Pagination({
   );
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
+// ── Inner component (uses useSearchParams — must be inside Suspense) ──────────
 
 interface Props {
   crosshairs: Crosshair[];
   cat: string;
 }
 
-export default function SearchableGrid({ crosshairs, cat }: Props) {
-  const [query, setQuery]       = useState("");
-  const [page, setPage]         = useState(1);
-  const [activeCat, setActiveCat] = useState(cat);
-
+function SearchableGridInner({ crosshairs }: { crosshairs: Crosshair[] }) {
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const router = useRouter();
   const { favorites, isFavorite, toggleFavorite } = useFavorites();
+
+  const activeCat  = searchParams.get("category") ?? "all";
+  const activePage = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
+  const [query, setQuery] = useState("");
 
   const handleSurpriseMe = useCallback(() => {
     const memes = crosshairs.filter((c) => c.category === "Meme");
@@ -121,21 +123,34 @@ export default function SearchableGrid({ crosshairs, cat }: Props) {
   // Ref to the top of the grid section — used for scroll-to-top on page change
   const gridTopRef = useRef<HTMLDivElement>(null);
 
+  function pushParams(overrides: Record<string, string | null>) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [k, v] of Object.entries(overrides)) {
+      if (v === null) params.delete(k);
+      else params.set(k, v);
+    }
+    // Never keep ?page=1 in the URL — cleaner
+    if (params.get("page") === "1") params.delete("page");
+    const qs = params.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
+
   const goToPage = useCallback((p: number) => {
-    setPage(p);
-    // Smooth-scroll to just below the sticky toolbar
-    gridTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, []);
+    pushParams({ page: String(p) });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, pathname]);
 
   function handleCatSelect(val: string) {
-    setActiveCat(val);
-    setPage(1);
+    // Category change always resets to page 1
+    pushParams({ category: val === "all" ? null : val, page: null });
     setQuery("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function handleQuery(val: string) {
     setQuery(val);
-    setPage(1);
+    pushParams({ page: null });
   }
 
   const filtered = useMemo(() => {
@@ -155,15 +170,15 @@ export default function SearchableGrid({ crosshairs, cat }: Props) {
   }, [crosshairs, activeCat, query, isFavorite]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
-  const safePage   = Math.min(page, totalPages);
+  const safePage   = Math.min(activePage, totalPages);
   const slice      = filtered.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE);
 
   const showPagination = !(activeCat === "favorites" && favorites.length === 0);
 
   return (
     <>
-      {/* ── Sticky toolbar ── */}
-      <div className="sticky top-[45px] z-10 border-b border-[#1c2f3d] bg-[#0a1018]">
+      {/* ── Fixed toolbar ── */}
+      <div className="fixed top-14 left-0 right-0 z-40 border-b border-[#1c2f3d] bg-[#0f172a]">
         <div className="px-4 pt-2 pb-0 flex items-center gap-2">
           <div className="relative flex-1 max-w-xs">
             <svg
@@ -201,10 +216,13 @@ export default function SearchableGrid({ crosshairs, cat }: Props) {
       </div>
 
       {/* ── Grid top anchor (scroll target) ── */}
-      <div ref={gridTopRef} className="scroll-mt-[90px]" />
+      <div ref={gridTopRef} />
 
       {/* ── Grid ── */}
-      <main className="px-3 py-4">
+      <main
+        className="px-3 pb-4"
+        style={{ paddingTop: "180px" }}
+      >
         {activeCat === "favorites" && favorites.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
             <svg
@@ -263,5 +281,15 @@ export default function SearchableGrid({ crosshairs, cat }: Props) {
         )}
       </main>
     </>
+  );
+}
+
+// ── Outer export — wraps inner in Suspense (required for useSearchParams) ─────
+
+export default function SearchableGrid({ crosshairs }: Props) {
+  return (
+    <Suspense>
+      <SearchableGridInner crosshairs={crosshairs} />
+    </Suspense>
   );
 }
