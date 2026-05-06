@@ -1,4 +1,11 @@
 import { useMemo, type CSSProperties, type ReactNode } from "react";
+import {
+  type CrosshairSettings,
+  type LineSettings,
+  colorHex,
+} from "@/lib/crosshair";
+
+// ── Legacy types (kept for CrosshairCard backwards compat) ────────────────────
 
 export type BgMode = "default" | "Icebox" | "Breeze" | "Bind";
 
@@ -16,33 +23,19 @@ export interface ParsedCrosshair {
   outerThickness: number;
   outerAlpha: number;
   showOuter: boolean;
-  /** `o` param — opacity of the black border drawn around every line/dot (0 = none, 1 = full) */
   outlineOpacity: number;
 }
 
 const PRESET: Record<string, string> = {
-  "0": "#ffffff",
-  "1": "#00ff44",
-  "2": "#ffd700",
-  "3": "#4499ff",
-  "4": "#ff4040",
-  "5": "#00e5ff",
-  "6": "#ff77dd",
-  "7": "#ff8800",
-  "8": "#ff8800",
+  "0": "#ffffff", "1": "#00ff44", "2": "#ffd700", "3": "#4499ff",
+  "4": "#ff4040", "5": "#00e5ff", "6": "#ff77dd", "7": "#ff8800",
 };
 
-function clamp(v: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, v));
+function clamp(v: number, lo: number, hi: number) {
+  return Math.min(hi, Math.max(lo, v));
 }
 
-// ── Section-aware parser ───────────────────────────────────────────────────────
-// Reads only the "P" (primary) section to avoid the scope "S;c;0" clobbering the
-// primary colour.  Also supports newer code params:
-//   d  → center dot  (alias for h)
-//   o  → outline opacity  (black border around every line)
-//   t  → global thickness fallback for 0t / 1t
-
+// Section-aware parser for legacy code string → ParsedCrosshair
 export function parseCrosshair(code: string): ParsedCrosshair {
   const parts = code.split(";");
   const p: Record<string, string> = {};
@@ -51,21 +44,17 @@ export function parseCrosshair(code: string): ParsedCrosshair {
 
   while (i < parts.length) {
     const k = parts[i];
-    if (i === 0)                                       { i++; continue; }
-    if (k === "P")                                     { section = "P"; i++; continue; }
+    if (i === 0)                                         { i++; continue; }
+    if (k === "P")                                       { section = "P"; i++; continue; }
     if (k === "A" || k === "S" || k === "G" || k === "X") { section = k; i++; continue; }
-    if (section !== "P")                               { i++; continue; }
+    if (section !== "P")                                 { i++; continue; }
 
     const next = parts[i + 1];
     if (next !== undefined && (/^-?[\d.]+$/.test(next) || next.startsWith("#"))) {
-      p[k] = next;
-      i += 2;
-    } else {
-      i++;
-    }
+      p[k] = next; i += 2;
+    } else { i++; }
   }
 
-  // Color
   const colorId = p["c"] ?? "0";
   let color: string;
   if ((colorId === "7" || colorId === "8") && p["u"]) {
@@ -74,24 +63,21 @@ export function parseCrosshair(code: string): ParsedCrosshair {
     color = PRESET[colorId] ?? "#ffffff";
   }
 
-  const innerLength    = clamp(parseFloat(p["0l"] ?? p["l"] ?? "6"),      0, 25);
-  const innerOffset    = clamp(parseFloat(p["0o"] ?? "3"),                0, 50);
-  const innerThickness = clamp(parseFloat(p["0t"] ?? p["t"] ?? "2"),      1, 10);
-  const innerAlpha     = clamp(parseFloat(p["0a"] ?? "1"),                0,  1);
-  const showInner      = p["0s"] !== "0";
-  const outerLength    = clamp(parseFloat(p["1l"] ?? "0"),                0, 25);
-  const outerOffset    = clamp(parseFloat(p["1o"] ?? "0"),                0, 50);
-  const outerThickness = clamp(parseFloat(p["1t"] ?? p["t"] ?? "2"),      1, 10);
-  const outerAlpha     = clamp(parseFloat(p["1a"] ?? "0.35"),             0,  1);
-  const showOuter      = p["1s"] !== "0" && outerLength > 0;
-  const hasDot         = p["h"] === "1" || p["d"] === "1";
-  const outlineOpacity = clamp(parseFloat(p["o"]  ?? "0"),                0,  1);
-
   return {
-    color, hasDot, dotThickness: innerThickness,
-    innerLength, innerOffset, innerThickness, innerAlpha, showInner,
-    outerLength, outerOffset, outerThickness, outerAlpha, showOuter,
-    outlineOpacity,
+    color,
+    hasDot:         p["h"] === "1" || p["d"] === "1",
+    dotThickness:   clamp(parseFloat(p["0t"] ?? p["t"] ?? "2"), 1, 10),
+    innerLength:    clamp(parseFloat(p["0l"] ?? p["l"] ?? "6"),  0, 25),
+    innerOffset:    clamp(parseFloat(p["0o"] ?? "3"),             0, 50),
+    innerThickness: clamp(parseFloat(p["0t"] ?? p["t"] ?? "2"),  1, 10),
+    innerAlpha:     clamp(parseFloat(p["0a"] ?? p["a"] ?? "1"),  0,  1),
+    showInner:      p["0s"] !== "0" && p["0b"] !== "0",
+    outerLength:    clamp(parseFloat(p["1l"] ?? "0"),            0, 25),
+    outerOffset:    clamp(parseFloat(p["1o"] ?? "0"),            0, 50),
+    outerThickness: clamp(parseFloat(p["1t"] ?? p["t"] ?? "2"), 1, 10),
+    outerAlpha:     clamp(parseFloat(p["1a"] ?? "0.35"),         0,  1),
+    showOuter:      p["1s"] !== "0" && p["1b"] !== "0",
+    outlineOpacity: clamp(parseFloat(p["o"] ?? "0"),             0,  1),
   };
 }
 
@@ -101,116 +87,179 @@ const overlay = "rgba(6,14,22,0.55)";
 
 export const BG_CSS: Record<BgMode, CSSProperties> = {
   default: { background: "radial-gradient(circle at 50% 45%, #1e2d3d 0%, #101c28 50%, #080f18 100%)" },
-  Icebox: {
-    backgroundImage: `linear-gradient(${overlay}, ${overlay}), url(https://picsum.photos/seed/icebox-snow/800/800)`,
-    backgroundSize: "cover", backgroundPosition: "center",
-  },
-  Breeze: {
-    backgroundImage: `linear-gradient(${overlay}, ${overlay}), url(https://picsum.photos/seed/breeze-ocean/800/800)`,
-    backgroundSize: "cover", backgroundPosition: "center",
-  },
-  Bind: {
-    backgroundImage: `linear-gradient(${overlay}, ${overlay}), url(https://picsum.photos/seed/bind-desert/800/800)`,
-    backgroundSize: "cover", backgroundPosition: "center",
-  },
+  Icebox:  { backgroundImage: `linear-gradient(${overlay},${overlay}), url(https://picsum.photos/seed/icebox-snow/800/800)`, backgroundSize: "cover", backgroundPosition: "center" },
+  Breeze:  { backgroundImage: `linear-gradient(${overlay},${overlay}), url(https://picsum.photos/seed/breeze-ocean/800/800)`, backgroundSize: "cover", backgroundPosition: "center" },
+  Bind:    { backgroundImage: `linear-gradient(${overlay},${overlay}), url(https://picsum.photos/seed/bind-desert/800/800)`, backgroundSize: "cover", backgroundPosition: "center" },
 };
 
-// ── SVG geometry ──────────────────────────────────────────────────────────────
+// ── SVG constants ─────────────────────────────────────────────────────────────
 
 const CANVAS = 200;
-const CENTER = CANVAS / 2;
+const CENTER = CANVAS / 2;  // 100
 
-// Width (in SVG units, per side) of the black border when outline is on.
-// 2 units ≈ 1 screen pixel at typical card size — keeps it crisp without
-// being so thick it overwhelms the crosshair shape.
-const OUTLINE_HALF = 2;
+// ── Legacy renderer (used by CrosshairCard via code prop) ─────────────────────
 
-function buildLines(cfg: ParsedCrosshair, colorOverride?: string) {
-  // Two-pass rendering: outlines (black, wider) drawn first so colored lines sit on top.
+const LEGACY_OUTLINE_HALF = 2;
+
+function buildLinesLegacy(cfg: ParsedCrosshair, colorOverride?: string): ReactNode[] {
   const bg: ReactNode[] = [];
   const fg: ReactNode[] = [];
-  const col = colorOverride ?? cfg.color;
-  const oOp = cfg.outlineOpacity;
+  const col  = colorOverride ?? cfg.color;
+  const oOp  = cfg.outlineOpacity;
 
-  /** Push outline then colored line.  Outline is always at full `oOp` opacity so it
-   *  remains visible even when the line itself is transparent (alpha=0). */
   function addLine(
-    key: string,
-    x1: number, y1: number,
-    x2: number, y2: number,
+    key: string, x1: number, y1: number, x2: number, y2: number,
     t: number, a: number,
   ) {
     if (oOp > 0) {
-      bg.push(
-        <line
-          key={`${key}_out`}
-          x1={x1} y1={y1} x2={x2} y2={y2}
-          stroke="#000000"
-          strokeWidth={t + OUTLINE_HALF * 2}
-          strokeLinecap="square"
-          opacity={oOp}
-        />,
-      );
+      bg.push(<line key={`${key}_out`} x1={x1} y1={y1} x2={x2} y2={y2}
+        stroke="#000000" strokeWidth={t + LEGACY_OUTLINE_HALF * 2}
+        strokeLinecap="square" opacity={oOp} />);
     }
-    fg.push(
-      <line
-        key={key}
-        x1={x1} y1={y1} x2={x2} y2={y2}
-        stroke={col}
-        strokeWidth={t}
-        strokeLinecap="square"
-        opacity={a}
-      />,
-    );
+    fg.push(<line key={key} x1={x1} y1={y1} x2={x2} y2={y2}
+      stroke={col} strokeWidth={t} strokeLinecap="square" opacity={a} />);
   }
 
-  // ── Inner lines ─────────────────────────────────────────────────────────────
   if (cfg.showInner && cfg.innerLength > 0) {
     const maxExtent = cfg.innerOffset + cfg.innerLength;
     const scale = maxExtent > 0 ? Math.min(6, (CENTER * 0.78) / maxExtent) : 4;
     const gap = cfg.innerOffset * scale;
     const len = cfg.innerLength * scale;
-    const t   = cfg.innerThickness;
-    const a   = cfg.innerAlpha;
-
+    const t = cfg.innerThickness, a = cfg.innerAlpha;
     addLine("r",  CENTER + gap, CENTER,       CENTER + gap + len, CENTER,             t, a);
     addLine("l",  CENTER - gap, CENTER,       CENTER - gap - len, CENTER,             t, a);
     addLine("dn", CENTER,       CENTER + gap, CENTER,             CENTER + gap + len, t, a);
     addLine("u",  CENTER,       CENTER - gap, CENTER,             CENTER - gap - len, t, a);
   }
 
-  // ── Outer lines ─────────────────────────────────────────────────────────────
   if (cfg.showOuter && cfg.outerLength > 0) {
-    const om  = cfg.outerOffset + cfg.outerLength;
-    const os  = om > 0 ? Math.min(6, (CENTER * 0.95) / om) : 4;
-    const gap = cfg.outerOffset * os;
-    const len = cfg.outerLength * os;
-    const t   = cfg.outerThickness;
-    const a   = cfg.outerAlpha;
-
+    const om    = cfg.outerOffset + cfg.outerLength;
+    const os    = om > 0 ? Math.min(6, (CENTER * 0.95) / om) : 4;
+    const gap   = cfg.outerOffset * os;
+    const len   = cfg.outerLength * os;
+    const t = cfg.outerThickness, a = cfg.outerAlpha;
     addLine("or", CENTER + gap, CENTER,       CENTER + gap + len, CENTER,             t, a);
     addLine("ol", CENTER - gap, CENTER,       CENTER - gap - len, CENTER,             t, a);
     addLine("od", CENTER,       CENTER + gap, CENTER,             CENTER + gap + len, t, a);
     addLine("ou", CENTER,       CENTER - gap, CENTER,             CENTER - gap - len, t, a);
   }
 
-  // ── Center dot ──────────────────────────────────────────────────────────────
   if (cfg.hasDot) {
     const isDotOnly = !cfg.showInner || cfg.innerLength === 0;
     const r = isDotOnly
       ? Math.max(3.5, cfg.dotThickness * 1.5)
       : Math.max(1.5, cfg.dotThickness * 0.55);
-    // When lines are transparent (alpha=0) the dot should still be fully visible
     const dotAlpha = cfg.innerAlpha > 0 ? cfg.innerAlpha : 1;
 
     if (oOp > 0) {
-      bg.push(
-        <circle key="dot_out" cx={CENTER} cy={CENTER} r={r + OUTLINE_HALF} fill="#000000" opacity={oOp} />,
-      );
+      bg.push(<circle key="dot_out" cx={CENTER} cy={CENTER}
+        r={r + LEGACY_OUTLINE_HALF} fill="#000000" opacity={oOp} />);
     }
-    fg.push(
-      <circle key="dot" cx={CENTER} cy={CENTER} r={r} fill={col} opacity={dotAlpha} />,
-    );
+    fg.push(<circle key="dot" cx={CENTER} cy={CENTER} r={r} fill={col} opacity={dotAlpha} />);
+  }
+
+  return [...bg, ...fg];
+}
+
+// ── Settings-based renderer (full feature support) ────────────────────────────
+
+// How far lines spread per unit of error multiplier (SVG canvas units)
+const BASE_FIRING_ERR   = 3;
+const BASE_MOVEMENT_ERR = 5;
+
+function errorOffset(lines: LineSettings): number {
+  let extra = 0;
+  if (lines.firingError)   extra += BASE_FIRING_ERR   * lines.firingErrorMultiplier;
+  if (lines.movementError) extra += BASE_MOVEMENT_ERR * lines.movementErrorMultiplier;
+  return extra;
+}
+
+function globalScale(settings: CrosshairSettings): number {
+  const inn = settings.primary.innerLines;
+  const out = settings.primary.outerLines;
+  const g   = settings.general;
+  let max   = 0;
+
+  if (inn.show && inn.length > 0) {
+    const ext = inn.offset + errorOffset(inn) + Math.max(inn.length, inn.length2 ?? 0);
+    max = Math.max(max, ext);
+  }
+  if (out.show && out.length > 0) {
+    const ext = out.offset + errorOffset(out) + Math.max(out.length, out.length2 ?? 0);
+    max = Math.max(max, ext);
+  }
+  if (g.centerDot) {
+    max = Math.max(max, g.centerDotThickness * 2);
+  }
+  if (max <= 0) return 6;
+  return Math.min(8, Math.max(2, (CENTER * 0.85) / max));
+}
+
+function buildLinesFromSettings(settings: CrosshairSettings): ReactNode[] {
+  const g   = settings.general;
+  const inn = settings.primary.innerLines;
+  const out = settings.primary.outerLines;
+
+  const outEnabled = g.outlines && g.outlineOpacity > 0;
+  const oHalf      = g.outlineThickness;
+  const scale      = globalScale(settings);
+  const col        = colorHex(settings);
+
+  const bg: ReactNode[] = [];
+  const fg: ReactNode[] = [];
+
+  function addLine(
+    key: string, x1: number, y1: number, x2: number, y2: number,
+    t: number, a: number,
+  ) {
+    if (outEnabled) {
+      bg.push(<line key={`${key}_o`} x1={x1} y1={y1} x2={x2} y2={y2}
+        stroke="#000000" strokeWidth={t + oHalf * 2}
+        strokeLinecap="square" opacity={g.outlineOpacity} />);
+    }
+    fg.push(<line key={key} x1={x1} y1={y1} x2={x2} y2={y2}
+      stroke={col} strokeWidth={t} strokeLinecap="square" opacity={a} />);
+  }
+
+  // Inner lines
+  if (inn.show && inn.length > 0) {
+    const errOff = errorOffset(inn) * scale;
+    const gap    = inn.offset * scale + errOff;
+    const hLen   = inn.length              * scale;
+    const vLen   = (inn.length2 ?? inn.length) * scale;
+    const t = inn.thickness, a = inn.opacity;
+    addLine("il_r",  CENTER + gap,       CENTER,             CENTER + gap + hLen, CENTER,             t, a);
+    addLine("il_l",  CENTER - gap,       CENTER,             CENTER - gap - hLen, CENTER,             t, a);
+    addLine("il_dn", CENTER,             CENTER + gap,       CENTER,             CENTER + gap + vLen, t, a);
+    addLine("il_u",  CENTER,             CENTER - gap,       CENTER,             CENTER - gap - vLen, t, a);
+  }
+
+  // Outer lines
+  if (out.show && out.length > 0) {
+    const errOff = errorOffset(out) * scale;
+    const gap    = out.offset * scale + errOff;
+    const hLen   = out.length              * scale;
+    const vLen   = (out.length2 ?? out.length) * scale;
+    const t = out.thickness, a = out.opacity;
+    addLine("ol_r",  CENTER + gap,       CENTER,             CENTER + gap + hLen, CENTER,             t, a);
+    addLine("ol_l",  CENTER - gap,       CENTER,             CENTER - gap - hLen, CENTER,             t, a);
+    addLine("ol_dn", CENTER,             CENTER + gap,       CENTER,             CENTER + gap + vLen, t, a);
+    addLine("ol_u",  CENTER,             CENTER - gap,       CENTER,             CENTER - gap - vLen, t, a);
+  }
+
+  // Center dot
+  if (g.centerDot) {
+    const isDotOnly = !inn.show || inn.length === 0;
+    const r = isDotOnly
+      ? Math.max(3, g.centerDotThickness * scale * 0.5)
+      : Math.max(1.5, g.centerDotThickness * 0.5);
+    const dotAlpha = inn.opacity > 0 ? inn.opacity : g.centerDotOpacity;
+
+    if (outEnabled) {
+      bg.push(<circle key="dot_o" cx={CENTER} cy={CENTER}
+        r={r + oHalf} fill="#000000" opacity={g.outlineOpacity} />);
+    }
+    fg.push(<circle key="dot" cx={CENTER} cy={CENTER} r={r} fill={col} opacity={dotAlpha} />);
   }
 
   return [...bg, ...fg];
@@ -219,31 +268,48 @@ function buildLines(cfg: ParsedCrosshair, colorOverride?: string) {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 interface Props {
-  code: string;
+  // New: pass CrosshairSettings directly (live editor — uses full feature set)
+  settings?: CrosshairSettings;
+  // Legacy: pass code string (CrosshairCard — uses legacy parser)
+  code?: string;
+  // Display
   bg?: BgMode;
   bgStyle?: CSSProperties;
   size?: number;
   fill?: boolean;
+  // Legacy overrides (used when only `code` is provided)
   colorOverride?: string;
   cfgOverride?: Partial<ParsedCrosshair>;
 }
 
 export default function CrosshairRenderer({
-  code, bg = "default", bgStyle, size = 80, fill = false, colorOverride, cfgOverride,
+  settings,
+  code,
+  bg = "default",
+  bgStyle,
+  size = 80,
+  fill = false,
+  colorOverride,
+  cfgOverride,
 }: Props) {
-  const parsed = useMemo(() => parseCrosshair(code), [code]);
-  const cfg    = useMemo(
-    () => cfgOverride ? { ...parsed, ...cfgOverride } : parsed,
-    [parsed, cfgOverride],
-  );
-  const lines  = useMemo(() => buildLines(cfg, colorOverride), [cfg, colorOverride]);
+  const lines = useMemo(() => {
+    if (settings) {
+      // New path: full feature rendering from CrosshairSettings
+      return buildLinesFromSettings(settings);
+    }
+    // Legacy path: parse code string, apply optional cfgOverride
+    const parsed  = parseCrosshair(code ?? "0;P;c;5;0l;4;0o;2;0a;1");
+    const cfg     = cfgOverride ? { ...parsed, ...cfgOverride } : parsed;
+    return buildLinesLegacy(cfg, colorOverride);
+  }, [settings, code, cfgOverride, colorOverride]);
+
+  const containerStyle = bgStyle ?? BG_CSS[bg];
 
   if (fill) {
     return (
-      <div className="flex items-center justify-center w-full h-full" style={bgStyle ?? BG_CSS[bg]}>
+      <div className="flex items-center justify-center w-full h-full" style={containerStyle}>
         <svg
-          width="100%"
-          height="100%"
+          width="100%" height="100%"
           viewBox={`0 0 ${CANVAS} ${CANVAS}`}
           preserveAspectRatio="xMidYMid meet"
           style={{ display: "block" }}
@@ -258,11 +324,10 @@ export default function CrosshairRenderer({
   return (
     <div
       className="flex items-center justify-center rounded-sm"
-      style={{ ...(bgStyle ?? BG_CSS[bg]), width: size, height: size }}
+      style={{ ...containerStyle, width: size, height: size }}
     >
       <svg
-        width={size}
-        height={size}
+        width={size} height={size}
         viewBox={`0 0 ${CANVAS} ${CANVAS}`}
         preserveAspectRatio="xMidYMid meet"
         style={{ display: "block" }}
