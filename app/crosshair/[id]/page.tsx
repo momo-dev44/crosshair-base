@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { crosshairs, type Crosshair } from "@/lib/data";
 import DetailClient from "./DetailClient";
 
-const BASE = "https://crosshairbase.gg";
+const BASE = "https://crosshairbase.com";
 
 export function generateStaticParams() {
   return crosshairs.map((c) => ({ id: c.id }));

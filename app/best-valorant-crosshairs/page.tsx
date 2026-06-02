@@ -9,13 +9,13 @@ export const metadata: Metadata = {
   description:
     "The best Valorant crosshairs used by pro players in 2026. Copy crosshair codes from TenZ, aspas, s0m, Derke and more — one click to import.",
   alternates: {
-    canonical: "https://crosshairbase.gg/best-valorant-crosshairs",
+    canonical: "https://crosshairbase.com/best-valorant-crosshairs",
   },
   openGraph: {
     title: "Best Valorant Crosshairs 2026 — Pro Settings & Codes",
     description:
       "Copy the exact crosshair codes used by top Valorant pros in 2026. One-click import.",
-    url: "https://crosshairbase.gg/best-valorant-crosshairs",
+    url: "https://crosshairbase.com/best-valorant-crosshairs",
   },
 };
 
@@ -39,8 +39,8 @@ const jsonLd = {
   name: "Best Valorant Crosshairs 2026",
   description:
     "A curated collection of the best Valorant crosshair codes used by professional players in 2026.",
-  url: "https://crosshairbase.gg/best-valorant-crosshairs",
-  isPartOf: { "@type": "WebSite", name: "CrosshairBase", url: "https://crosshairbase.gg" },
+  url: "https://crosshairbase.com/best-valorant-crosshairs",
+  isPartOf: { "@type": "WebSite", name: "CrosshairBase", url: "https://crosshairbase.com" },
 };
 
 export default function BestCrosshairs() {

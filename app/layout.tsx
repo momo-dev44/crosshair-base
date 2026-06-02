@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://crosshairbase.gg"),
+  metadataBase: new URL("https://crosshairbase.com"),
   title: "CrosshairBase — Pro Valorant Crosshairs",
   description: "Browse and copy crosshair codes from the world's best Valorant pro players. Live editor lets you customise and share any crosshair.",
   keywords: ["Valorant", "crosshair", "crosshair codes", "pro crosshairs", "crosshair editor"],
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     siteName: "CrosshairBase",
     title: "CrosshairBase — Pro Valorant Crosshairs",
     description: "Browse pro Valorant crosshair codes, tweak them live, and share your custom settings with a single link.",
-    url: "https://crosshairbase.gg",
+    url: "https://crosshairbase.com",
   },
   twitter: {
     card: "summary_large_image",

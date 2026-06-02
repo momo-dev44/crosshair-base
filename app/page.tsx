@@ -11,12 +11,12 @@ const jsonLd = {
   "@context": "https://schema.org",
   "@type": "WebSite",
   name: "CrosshairBase",
-  url: "https://crosshairbase.gg",
+  url: "https://crosshairbase.com",
   description:
     "The largest Valorant crosshair database. Browse, copy, and customise crosshair codes from pro players.",
   potentialAction: {
     "@type": "SearchAction",
-    target: "https://crosshairbase.gg/?search={search_term_string}",
+    target: "https://crosshairbase.com/?search={search_term_string}",
     "query-input": "required name=search_term_string",
   },
 };

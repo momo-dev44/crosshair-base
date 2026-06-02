@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { crosshairs } from "@/lib/data";
 
-const BASE = "https://crosshairbase.gg";
+const BASE = "https://crosshairbase.com";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const crosshairPages: MetadataRoute.Sitemap = crosshairs.map((c) => ({
