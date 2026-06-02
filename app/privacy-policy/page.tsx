@@ -4,6 +4,9 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Privacy Policy | CrosshairBase",
   description: "CrosshairBase privacy policy — how we handle data, cookies, and advertising.",
+  alternates: {
+    canonical: "https://www.crosshairbase.com/privacy-policy",
+  },
 };
 
 export default function PrivacyPolicy() {
@@ -31,7 +34,7 @@ export default function PrivacyPolicy() {
             <h2 className="text-sm font-bold text-white mb-2">1. Overview</h2>
             <p>
               CrosshairBase (&ldquo;we&rdquo;, &ldquo;our&rdquo;, or &ldquo;us&rdquo;) operates the website
-              crosshairbase.gg (the &ldquo;Service&rdquo;). This page informs you of our policies regarding the
+              crosshairbase.com (the &ldquo;Service&rdquo;). This page informs you of our policies regarding the
               collection, use, and disclosure of information when you use our Service.
             </p>
           </section>
@@ -128,10 +131,10 @@ export default function PrivacyPolicy() {
             <p>
               If you have any questions about this Privacy Policy, please contact us at{" "}
               <a
-                href="mailto:contact@crosshairbase.gg"
+                href="mailto:contact@crosshairbase.com"
                 className="text-cyan-400 hover:underline"
               >
-                contact@crosshairbase.gg
+                contact@crosshairbase.com
               </a>
               .
             </p>
