@@ -7,10 +7,9 @@ import CrosshairRenderer from "./CrosshairRenderer";
 import { useToast } from "./ToastProvider";
 
 const BADGE_COLOR: Record<Category, string> = {
-  Pro:      "#22d3ee",
-  Fun:      "#4ade80",
-  Meme:     "#f472b6",
-  Circular: "#a78bfa",
+  Pro:  "#22d3ee",
+  Fun:  "#4ade80",
+  Meme: "#f472b6",
 };
 
 const BADGE_LABEL: Partial<Record<Category, string>> = {

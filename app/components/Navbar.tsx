@@ -111,10 +111,19 @@ export default function Navbar() {
           )}
         </nav>
 
-        {/* ── Crosshair count badge ── */}
-        <span className="ml-auto hidden shrink-0 rounded border border-[#1c2f3d] px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 sm:block">
-          {count} crosshairs
-        </span>
+        {/* ── Right-side links ── */}
+        <div className="ml-auto flex shrink-0 items-center gap-3">
+          <Link
+            href="/about"
+            className="hidden sm:block text-[10px] font-semibold uppercase tracking-widest text-slate-500 hover:text-cyan-400 transition-colors"
+          >
+            How to Import
+          </Link>
+          <span className="hidden sm:block h-3 w-px bg-[#1c2f3d]" />
+          <span className="hidden sm:block rounded border border-[#1c2f3d] px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+            {count} crosshairs
+          </span>
+        </div>
 
       </div>
     </header>

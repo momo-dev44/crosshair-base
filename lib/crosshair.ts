@@ -39,7 +39,8 @@ export interface CrosshairSettings {
     centerDot: boolean;
     centerDotColor: number;
     centerDotOpacity: number;
-    centerDotThickness: number;
+    /** S;s param — scope ring scale (0 = hidden, ~0.6–0.8 = circular crosshair) */
+    scopeScale: number;
   };
 }
 
@@ -78,7 +79,7 @@ const DEFAULT_INNER: LineSettings = {
 
 const DEFAULT_OUTER: LineSettings = {
   show: false,
-  opacity: 0.35,
+  opacity: 1,
   length: 0,
   thickness: 2,
   offset: 0,
@@ -113,7 +114,7 @@ export const DEFAULT_CROSSHAIR: CrosshairSettings = {
     centerDot: false,
     centerDotColor: 0,
     centerDotOpacity: 0.75,
-    centerDotThickness: 1,
+    scopeScale: 0,
   },
 };
 
@@ -169,13 +170,21 @@ function parseLines(
   p: Record<string, string>,
   def: LineSettings,
 ): LineSettings {
+  const rawOpacity = n(p[`${prefix}a`], def.opacity);
+  // Both 0a=0 and 1a=0 mean "use default opacity" in Valorant format, not transparent
+  const opacity = rawOpacity === 0 ? def.opacity : clamp(rawOpacity, 0, 1);
+
+  const rawV = p[`${prefix}v`];
+  // v absent → symmetric (same as horizontal); v present (including 0) → explicit vertical length
+  const length2 = rawV !== undefined
+    ? clamp(n(rawV, def.length), 0, 20)
+    : undefined;
+
   return {
     show:                    b(p[`${prefix}b`], def.show),
-    opacity:                 clamp(n(p[`${prefix}a`], def.opacity), 0, 1),
+    opacity,
     length:                  clamp(n(p[`${prefix}l`], def.length),  0, 20),
-    length2:                 p[`${prefix}v`] !== undefined
-                               ? clamp(n(p[`${prefix}v`], def.length), 0, 20)
-                               : undefined,
+    length2,
     thickness:               clamp(n(p[`${prefix}t`], def.thickness), 0, 10),
     offset:                  clamp(n(p[`${prefix}o`], def.offset),    0, 40),
     movementError:           b(p[`${prefix}m`], def.movementError),
@@ -257,7 +266,7 @@ export function parseCrosshairCode(code: string): CrosshairSettings {
       centerDot:          b(s["d"], false),
       centerDotColor:     clamp(parseInt(s["c"] ?? "0", 10) || 0, 0, 8),
       centerDotOpacity:   clamp(n(s["o"], 0.75), 0, 1),
-      centerDotThickness: clamp(n(s["s"], 1), 1, 6),
+      scopeScale: clamp(n(s["s"], 0), 0, 2),
     },
   };
 }
@@ -294,7 +303,7 @@ export function generateCrosshairCode(settings: CrosshairSettings): string {
   parts.push("S");
   if (sn.centerDot) parts.push("d", "1");
   parts.push("c", String(sn.centerDotColor));
-  parts.push("s", fmt(sn.centerDotThickness));
+  parts.push("s", fmt(sn.scopeScale));
   parts.push("o", fmt(sn.centerDotOpacity));
 
   return parts.join(";");
@@ -359,7 +368,7 @@ export function randomCrosshair(): CrosshairSettings {
       innerLines:  { ...DEFAULT_CROSSHAIR.ads.innerLines },
       outerLines:  { ...DEFAULT_CROSSHAIR.ads.outerLines },
     },
-    sniper: { ...DEFAULT_CROSSHAIR.sniper },
+    sniper: { centerDot: false, centerDotColor: 0, centerDotOpacity: 0.75, scopeScale: 0 },
   };
 }
 
@@ -380,24 +389,34 @@ export function settingsToRendererCfg(settings: CrosshairSettings): {
   outerThickness: number;
   outerAlpha: number;
   outlineOpacity: number;
+  innerErrorOffset: number;
+  outerErrorOffset: number;
 } {
   const { general: g, primary: pr } = settings;
   const inn = pr.innerLines;
   const out = pr.outerLines;
+
+  function errOff(lines: LineSettings): number {
+    return (lines.movementError ? 5 * lines.movementErrorMultiplier : 0) +
+           (lines.firingError   ? 3 * lines.firingErrorMultiplier   : 0);
+  }
+
   return {
-    color:          colorHex(settings),
-    hasDot:         g.centerDot,
-    dotThickness:   g.centerDotThickness,
-    showInner:      inn.show && inn.length > 0,
-    innerLength:    inn.length,
-    innerOffset:    inn.offset,
-    innerThickness: inn.thickness,
-    innerAlpha:     inn.opacity,
-    showOuter:      out.show && out.length > 0,
-    outerLength:    out.length,
-    outerOffset:    out.offset,
-    outerThickness: out.thickness,
-    outerAlpha:     out.opacity,
-    outlineOpacity: g.outlines ? g.outlineOpacity : 0,
+    color:            colorHex(settings),
+    hasDot:           g.centerDot,
+    dotThickness:     g.centerDotThickness,
+    showInner:        inn.show && inn.length > 0,
+    innerLength:      inn.length,
+    innerOffset:      inn.offset,
+    innerThickness:   inn.thickness,
+    innerAlpha:       inn.opacity,
+    showOuter:        out.show && out.length > 0,
+    outerLength:      out.length,
+    outerOffset:      out.offset,
+    outerThickness:   out.thickness,
+    outerAlpha:       out.opacity,
+    outlineOpacity:   g.outlines ? g.outlineOpacity : 0,
+    innerErrorOffset: errOff(inn),
+    outerErrorOffset: errOff(out),
   };
 }

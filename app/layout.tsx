@@ -25,20 +25,11 @@ export const metadata: Metadata = {
     title: "CrosshairBase — Pro Valorant Crosshairs",
     description: "Browse pro Valorant crosshair codes, tweak them live, and share your custom settings with a single link.",
     url: "https://crosshairbase.gg",
-    images: [
-      {
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "CrosshairBase — Pro Valorant Crosshairs",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "CrosshairBase — Pro Valorant Crosshairs",
     description: "Browse pro Valorant crosshair codes, tweak them live, and share your custom settings with a single link.",
-    images: ["/og-image.png"],
   },
 };
 

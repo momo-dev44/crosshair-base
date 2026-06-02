@@ -33,10 +33,9 @@ const SURFACES: Surface[] = [
 ];
 
 const CATEGORY_COLOR: Record<string, string> = {
-  Pro:      "#22d3ee",
-  Fun:      "#4ade80",
-  Meme:     "#f87171",
-  Circular: "#a78bfa",
+  Pro:  "#22d3ee",
+  Fun:  "#4ade80",
+  Meme: "#f87171",
 };
 
 // ── Big copy button ───────────────────────────────────────────────────────────
@@ -181,9 +180,10 @@ function FavButton({ id }: { id: string }) {
 
 interface Props {
   crosshair: Crosshair;
+  related?: Crosshair[];
 }
 
-export default function DetailClient({ crosshair }: Props) {
+export default function DetailClient({ crosshair, related = [] }: Props) {
   const catColor = CATEGORY_COLOR[crosshair.category] ?? "#94a3b8";
 
   const router      = useRouter();
@@ -261,14 +261,21 @@ export default function DetailClient({ crosshair }: Props) {
         {/* Player header */}
         <div className="flex items-start gap-3 mb-8">
           <div className="mt-1 h-3 w-1 rounded-full shrink-0" style={{ background: catColor }} />
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-2xl font-black tracking-tight">{crosshair.name}</h1>
-            <span
-              className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-sm border leading-none"
-              style={{ color: catColor, background: catColor + "18", borderColor: catColor + "40" }}
-            >
-              {crosshair.category}
-            </span>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <h1 className="text-2xl font-black tracking-tight">{crosshair.name}</h1>
+              <span
+                className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-sm border leading-none"
+                style={{ color: catColor, background: catColor + "18", borderColor: catColor + "40" }}
+              >
+                {crosshair.category}
+              </span>
+            </div>
+            {(crosshair.team || crosshair.role) && (
+              <p className="text-[11px] text-slate-500">
+                {[crosshair.role, crosshair.team].filter(Boolean).join(" · ")}
+              </p>
+            )}
           </div>
         </div>
 
@@ -362,10 +369,46 @@ export default function DetailClient({ crosshair }: Props) {
         </div>
       </main>
 
-      <footer className="border-t border-[#1c2f3d] py-5 mt-10">
-        <p className="text-center text-[11px] text-slate-700">
-          CrosshairBase — Fan resource. Not affiliated with Riot Games.
-        </p>
+      {/* Related crosshairs */}
+      {related.length > 0 && (
+        <section className="mx-auto max-w-6xl px-4 sm:px-6 pb-10">
+          <h2 className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600 mb-4">
+            More {crosshair.category} Crosshairs
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            {related.map((r) => (
+              <Link
+                key={r.id}
+                href={`/crosshair/${r.id}`}
+                className="group flex flex-col items-center gap-2 rounded-lg border border-[#1c2f3d] bg-[#0c1520] p-3 hover:border-[#2a3f52] transition-colors"
+              >
+                <CrosshairRenderer
+                  settings={parseCrosshairCode(r.code)}
+                  bgStyle={{ background: "#111e2a" }}
+                  size={52}
+                />
+                <span className="text-[10px] font-semibold text-slate-500 group-hover:text-slate-300 transition-colors text-center truncate w-full">
+                  {r.name}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <footer className="border-t border-[#1c2f3d] py-5">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 flex flex-col items-center gap-3">
+          <div className="flex items-center gap-4 text-[10px] text-slate-600 flex-wrap justify-center">
+            <Link href="/" className="hover:text-slate-400 transition-colors">← All Crosshairs</Link>
+            <span className="text-slate-800">·</span>
+            <Link href="/about" className="hover:text-slate-400 transition-colors">How to Import</Link>
+            <span className="text-slate-800">·</span>
+            <Link href="/privacy-policy" className="hover:text-slate-400 transition-colors">Privacy Policy</Link>
+          </div>
+          <p className="text-center text-[10px] text-slate-700">
+            CrosshairBase — Fan resource. Not affiliated with Riot Games or VALORANT.
+          </p>
+        </div>
       </footer>
     </div>
   );
@@ -905,9 +948,11 @@ function CrosshairEditor({ accentColor, settings, onChange, isModified, onReset 
       {/* ── Tab: Sniper ── */}
       {tab === "sniper" && (
         <div className="divide-y divide-[#1c2f3d]">
+          <SliderRow label="Circle Ring Scale" value={sn.scopeScale} min={0} max={2} step={0.05}
+            onChange={(v) => setSniper({ scopeScale: v })} />
           <ToggleRow label="Center Dot" value={sn.centerDot}
             onChange={(v) => setSniper({ centerDot: v })} />
-          {sn.centerDot ? (
+          {sn.centerDot && (
             <>
               <div className="px-4 py-2.5">
                 <span className="text-xs text-slate-500 block mb-2">Dot Color</span>
@@ -927,13 +972,9 @@ function CrosshairEditor({ accentColor, settings, onChange, isModified, onReset 
                   ))}
                 </div>
               </div>
-              <SliderRow label="Dot Opacity"   value={sn.centerDotOpacity}   min={0} max={1} step={0.05} onChange={(v) => setSniper({ centerDotOpacity: v })} />
-              <SliderRow label="Dot Thickness" value={sn.centerDotThickness} min={1} max={6} step={1}    onChange={(v) => setSniper({ centerDotThickness: v })} />
+              <SliderRow label="Dot Opacity" value={sn.centerDotOpacity} min={0} max={1} step={0.05}
+                onChange={(v) => setSniper({ centerDotOpacity: v })} />
             </>
-          ) : (
-            <p className="px-4 py-6 text-center text-[11px] text-slate-600">
-              Sniper center dot is off.
-            </p>
           )}
         </div>
       )}

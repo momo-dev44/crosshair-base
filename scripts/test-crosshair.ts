@@ -176,7 +176,7 @@ section("10. Sniper section")
   const s = parseCrosshairCode(code);
   eq("sniper center dot = true", s.sniper.centerDot, true);
   eq("sniper dot color = 2", s.sniper.centerDotColor, 2);
-  eq("sniper dot thickness = 3", s.sniper.centerDotThickness, 3);
+  eq("sniper scope scale = 3", s.sniper.scopeScale, 3);
   eq("sniper dot opacity = 0.6", s.sniper.centerDotOpacity, 0.6);
 }
 

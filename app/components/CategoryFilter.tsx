@@ -1,11 +1,10 @@
 "use client";
 
 const CATS: { label: string; value: string }[] = [
-  { label: "All",      value: "all" },
-  { label: "Pro",      value: "Pro" },
-  { label: "Fun",      value: "Fun" },
-  { label: "Meme",     value: "Meme" },
-  { label: "Circular", value: "Circular" },
+  { label: "All",  value: "all" },
+  { label: "Pro",  value: "Pro" },
+  { label: "Fun",  value: "Fun" },
+  { label: "Meme", value: "Meme" },
 ];
 
 interface Props {
